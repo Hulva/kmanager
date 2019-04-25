@@ -82,6 +82,7 @@ angular.module('kmanager.controllers', ["kmanager.services"])
 			$scope.task = {
 				group: $routeParams.group,
 				topic: $routeParams.topic,
+				consumerAPI: 0,
 				diapause: "",
 				threshold: "",
 				mailTo: ""
@@ -117,6 +118,11 @@ angular.module('kmanager.controllers', ["kmanager.services"])
 					modal.find('.modal-body #group').val(group);
 					if (isTaskExists) {
 						modal.find('.modal-title').text('Task already exists!');
+						$("#taskForm input[name='consumerAPI']").each(function(){  
+						    if($(this).val() == $scope.task.consumerAPI){  
+						        $(this).prop( "checked", true );  
+						    }  
+						});
 						modal.find('.modal-body #inputThreshold').val($scope.task.threshold);
 						modal.find('.modal-body #inputDiapause').val($scope.task.diapause);
 						modal.find('.modal-body #inputEmail').val($scope.task.mailTo);

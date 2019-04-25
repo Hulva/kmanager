@@ -1,5 +1,5 @@
 {
-	"template": "chicklingkmanager-*",
+	"template": "xaec2_kmanager-*",
 	"settings": {
 		"index": {
 			"number_of_shards": "5",

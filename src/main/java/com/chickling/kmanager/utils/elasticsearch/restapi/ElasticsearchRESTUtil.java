@@ -143,13 +143,13 @@ public class ElasticsearchRESTUtil implements Ielasticsearch {
     File templateJMXMappingFile = new File("config/jmx-mapping.json");
     String templateJMXMappingFileContent = CommonUtils.loadFileContent(templateJMXMappingFile.getAbsolutePath());
     mappings.put("Jmx-" + SystemManager.getConfig().getClusterName().replaceAll("\\W", ""), new JSONObject(templateJMXMappingFileContent));
-    File templateOffsetMappingFile = new File("config/offset-mapping.json");
+    /*File templateOffsetMappingFile = new File("config/offset-mapping.json");
     String templateOffsetMappingFileContent = CommonUtils.loadFileContent(templateOffsetMappingFile.getAbsolutePath());
     mappings.put("Offset-" + SystemManager.getConfig().getClusterName().replaceAll("\\W", ""),
-        new JSONObject(templateOffsetMappingFileContent));
+        new JSONObject(templateOffsetMappingFileContent));*/
 
     template.put("mappings", mappings);
-
+    
     /* ResponseEntity<String> response = */REST.exchange("http://" + getHost() + "/_template/" + templateName, HttpMethod.PUT,
         new HttpEntity<String>(template.toString(), headers), String.class);
     // TODO response?

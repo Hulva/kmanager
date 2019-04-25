@@ -1,6 +1,3 @@
-/**
- * 
- */
 package com.chickling.kmanager.core.service;
 
 import java.util.ArrayList;
@@ -24,14 +21,15 @@ import kafka.admin.AdminClient;
 import kafka.admin.AdminClient.ConsumerGroupSummary;
 import kafka.admin.AdminClient.ConsumerSummary;
 import kafka.common.TopicAndPartition;
+import lombok.extern.slf4j.Slf4j;
 import scala.collection.JavaConversions;
 
 /**
  * @author Hulva Luva.H
  * @since 2018年4月23日
  */
+@Slf4j
 public class KafkaConsumerGroupService extends AbstractConsumerGroupService {
-  // private static Logger LOG = LoggerFactory.getLogger(ConsumerGroupService.class);
 
   private AdminClient adminClient;
 
@@ -62,7 +60,8 @@ public class KafkaConsumerGroupService extends AbstractConsumerGroupService {
       this.adminClient.close();
     }
     if (this.kmanagerLogEndOffsetGetter != null) {
-      Iterator<Entry<String, KafkaConsumer<String, String>>> ite = this.kmanagerLogEndOffsetGetter.entrySet().iterator();
+      Iterator<Entry<String, KafkaConsumer<String, String>>> ite =
+          this.kmanagerLogEndOffsetGetter.entrySet().iterator();
       while (ite.hasNext()) {
         ite.next().getValue().close();
       }
@@ -79,56 +78,64 @@ public class KafkaConsumerGroupService extends AbstractConsumerGroupService {
   protected Map<String, List<PartitionAssignmentState>> collectGroupAssignment(String group) {
     Map<String, List<PartitionAssignmentState>> ret = new HashMap<String, List<PartitionAssignmentState>>();
 
-    ConsumerGroupSummary consumerGroupSummary = this.getAdminClient().describeConsumerGroup(group);
-    List<ConsumerSummary> consumerSummarys = JavaConversions.seqAsJavaList(consumerGroupSummary.consumers().get());
-    List<TopicPartition> assignedTopicPartitions = new ArrayList<>();
-    // Map<TopicPartition, Long>
-    Map<TopicPartition, Object> offsets = JavaConversions.mapAsJavaMap(this.getAdminClient().listGroupOffsets(group));
-    List<PartitionAssignmentState> rowsWithConsumer = new ArrayList<PartitionAssignmentState>();
-    if (!offsets.isEmpty()) {
-      consumerSummarys.forEach(consumerSummary -> {
-        List<TopicAndPartition> topicPartitions = JavaConversions.seqAsJavaList(consumerSummary.assignment()).stream()
-            .map(topicPartition -> new TopicAndPartition(topicPartition)).collect(Collectors.toList());
-        assignedTopicPartitions.addAll(JavaConversions.seqAsJavaList(consumerSummary.assignment()));
+    try {
+      ConsumerGroupSummary consumerGroupSummary = this.getAdminClient().describeConsumerGroup(group);
+      List<ConsumerSummary> consumerSummarys = JavaConversions.seqAsJavaList(consumerGroupSummary.consumers().get());
+      List<TopicPartition> assignedTopicPartitions = new ArrayList<>();
+      // Map<TopicPartition, Long>
+      Map<TopicPartition, Object> offsets = JavaConversions.mapAsJavaMap(this.getAdminClient().listGroupOffsets(group));
+      List<PartitionAssignmentState> rowsWithConsumer = new ArrayList<PartitionAssignmentState>();
+      if (!offsets.isEmpty()) {
+        consumerSummarys.forEach(consumerSummary -> {
+          List<TopicAndPartition> topicPartitions = JavaConversions.seqAsJavaList(consumerSummary.assignment()).stream()
+              .map(topicPartition -> new TopicAndPartition(topicPartition)).collect(Collectors.toList());
+          assignedTopicPartitions.addAll(JavaConversions.seqAsJavaList(consumerSummary.assignment()));
 
-        rowsWithConsumer.addAll(this.collectConsumerAssignment(group, Optional.ofNullable(consumerGroupSummary.coordinator()),
-            topicPartitions, new MyFunctions() {
+          rowsWithConsumer.addAll(this.collectConsumerAssignment(group,
+              Optional.ofNullable(consumerGroupSummary.coordinator()), topicPartitions, new MyFunctions() {
 
-              @Override
-              public Map<TopicAndPartition, Optional<Long>> getPartitionOffset(TopicAndPartition topicAndPartition) {
-                Map<TopicAndPartition, Optional<Long>> partitionOffsets = new HashMap<>();
-                JavaConversions.seqAsJavaList(consumerSummary.assignment()).forEach(topicPartition -> {
-                  partitionOffsets.put(new TopicAndPartition(topicPartition), Optional.ofNullable((Long) offsets.get(topicPartition)));
-                });
-                return partitionOffsets;
-              }
+                @Override
+                public Map<TopicAndPartition, Optional<Long>> getPartitionOffset(TopicAndPartition topicAndPartition) {
+                  Map<TopicAndPartition, Optional<Long>> partitionOffsets = new HashMap<>();
+                  JavaConversions.seqAsJavaList(consumerSummary.assignment()).forEach(topicPartition -> {
+                    partitionOffsets.put(new TopicAndPartition(topicPartition),
+                        Optional.ofNullable((Long) offsets.get(topicPartition)));
+                  });
+                  return partitionOffsets;
+                }
 
-            }, Optional.ofNullable(consumerSummary.consumerId()), Optional.ofNullable(consumerSummary.host()),
-            Optional.ofNullable(consumerSummary.clientId())));
-      });
-    }
-
-    List<PartitionAssignmentState> rowsWithoutConsumer = new ArrayList<PartitionAssignmentState>();
-    TopicAndPartition topicAndPartition = null;
-    for (Entry<TopicPartition, Object> entry : offsets.entrySet()) {
-      if (!assignedTopicPartitions.contains(entry.getKey())) {
-        topicAndPartition = new TopicAndPartition(entry.getKey());
-        rowsWithoutConsumer.addAll(this.collectConsumerAssignment(group, Optional.ofNullable(consumerGroupSummary.coordinator()),
-            Arrays.asList(topicAndPartition), new MyFunctions() {
-
-              @Override
-              public Map<TopicAndPartition, Optional<Long>> getPartitionOffset(TopicAndPartition topicAndPartition) {
-                Map<TopicAndPartition, Optional<Long>> temp = new HashMap<TopicAndPartition, Optional<Long>>();
-                temp.put(topicAndPartition, Optional.ofNullable((Long) entry.getValue()));
-                return temp;
-              }
-
-            }, Optional.of(MISSING_COLUMN_VALUE), Optional.of(MISSING_COLUMN_VALUE), Optional.of(MISSING_COLUMN_VALUE)));
+              }, Optional.ofNullable(consumerSummary.consumerId()), Optional.ofNullable(consumerSummary.host()),
+              Optional.ofNullable(consumerSummary.clientId())));
+        });
       }
+      List<PartitionAssignmentState> rowsWithoutConsumer = new ArrayList<PartitionAssignmentState>();
+      TopicAndPartition topicAndPartition = null;
+      for (Entry<TopicPartition, Object> entry : offsets.entrySet()) {
+        if (!assignedTopicPartitions.contains(entry.getKey())) {
+          topicAndPartition = new TopicAndPartition(entry.getKey());
+          rowsWithoutConsumer
+              .addAll(this.collectConsumerAssignment(group, Optional.ofNullable(consumerGroupSummary.coordinator()),
+                  Arrays.asList(topicAndPartition), new MyFunctions() {
+
+                    @Override
+                    public Map<TopicAndPartition, Optional<Long>> getPartitionOffset(
+                        TopicAndPartition topicAndPartition) {
+                      Map<TopicAndPartition, Optional<Long>> temp = new HashMap<TopicAndPartition, Optional<Long>>();
+                      temp.put(topicAndPartition, Optional.ofNullable((Long) entry.getValue()));
+                      return temp;
+                    }
+
+                  }, Optional.of(MISSING_COLUMN_VALUE), Optional.of(MISSING_COLUMN_VALUE),
+                  Optional.of(MISSING_COLUMN_VALUE)));
+        }
+      }
+      rowsWithConsumer.addAll(rowsWithoutConsumer);
+      ret.put(consumerGroupSummary.state(), rowsWithConsumer);
+      return ret;
+    } catch (Exception e) {
+      log.warn(e.getMessage());
+      return ret;
     }
-    rowsWithConsumer.addAll(rowsWithoutConsumer);
-    ret.put(consumerGroupSummary.state(), rowsWithConsumer);
-    return ret;
   }
 
   /*
